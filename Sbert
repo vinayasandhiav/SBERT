@@ -1,0 +1,94 @@
+import nltk
+#libraries
+from pyresparser import ResumeParser
+import pandas as pd
+from nltk.stem.snowball import SnowballStemmer
+from nltk.stem.wordnet import WordNetLemmatizer
+from nltk.stem.snowball import SnowballStemmer
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+pd.set_option('display.max_colwidth', None)
+import os
+import nltk
+#Collecting all resumes from the folder
+pdf_path= []
+for dirpath, dirnames, filenames in os.walk("."):
+    for filename in [f for f in filenames if f.endswith(".pdf")]:
+        pdf_path.append(os.path.join(dirpath, filename))
+print(pdf_path)
+#import nltk
+import nltk
+# serch the job description and collect all the candidate information to the list
+d=[]
+name=[]
+email=[] 
+mobile=[] 
+skill=[]
+jd=input("Enter Job description: ")
+for i in pdf_path:
+    data = ResumeParser(f'{i}').get_extracted_data()  #/content/ABHISHEKSB[3_7].pdf
+    name.append(data['name'])
+    email.append(data['email'])
+    mobile.append(data['mobile_number'])
+    skill.append(data['skills'])
+  #d.append({"Name":data['name'],"Email":data['email'],"Mobile":data['mobile_number'],"Skills":data['skills']})
+df=pd.DataFrame({"Name":name,"Email":email,"Mobile":mobile,"Skills":skill})
+df
+#Duplicate removal based on email id
+df.drop_duplicates(subset ="Email",keep = 'first', inplace = True)
+#Stemming
+stemmer = SnowballStemmer("english")
+df['Skills'] = df['Skills'].apply(lambda x: [stemmer.stem(y) for y in x])
+#Lemmatization
+lmtzr = WordNetLemmatizer()
+df['Skills'] = df['Skills'].apply(lambda lst:[lmtzr.lemmatize(word) for word in lst])
+df['Skills']=[','.join(map(str,l)) for l in df['Skills']]
+skil_data=df['Skills'].to_numpy().tolist()
+skil_data[0]
+#shortlist the candidate based on skill and JD provided in search
+skil_data1=[]
+for d in skil_data:
+    if jd in d:
+        skil_data1.append(d)
+skil_data1.insert(0,jd)
+#SBERT model encoding
+model1 = SentenceTransformer('bert-base-nli-mean-tokens')
+sen_embeddings1 = model1.encode(skil_data1)
+#cosine similarity of SBERT sentence embedding
+f1=cosine_similarity(
+    [sen_embeddings1[0]],
+    sen_embeddings1[1:]
+)
+len(f1[0])
+#BERT 
+from transformers import BertTokenizer
+#Pre trained BERT 
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+#encoding
+encoded_input = tokenizer(skil_data1,padding=True)
+encoded_input.keys()
+word_embeddings=encoded_input['input_ids']
+#Cosine similarity of BERT word embedding
+f2=cosine_similarity(
+    [word_embeddings[0]],
+    word_embeddings[1:]
+)
+len(f2[0])
+df=df[df['Skills'].isin(skil_data1)]
+# Adding both SBERT and BERT similarity to dataframe
+df['bert_similarty']=f2[0]
+df['sbert']=f1[0]
+#Sort top 5 candidates with BERT similarity
+df.sort_values(by=['bert_similarty'],ascending=False, inplace=True)
+df.head(5)
+#Sort top 5 candidates with SBERT similarity
+df.sort_values(by=['sbert'],ascending=False, inplace=True)
+df.head(10)
+#Ploting a pictorial repersenation of BERT vs SBERT
+df.plot.bar(title="Bert Vs SBert")
+#List top 10 ranked candidate info from SBERT 
+df.sort_values(by=['sbert'],ascending=True).reset_index().iloc[0:10,1:-2]
+#List top 10 ranked candidate info from SBERT 
+df.sort_values(by=['bert_similarty'],ascending=True).reset_index().iloc[0:10,1:-2]
+##comparison of top 10 SBERT  vs BERT
+df.sort_values(by=['sbert'],ascending=True).reset_index().iloc[0:10,1:].plot.bar(title="Bert Vs SBert")
