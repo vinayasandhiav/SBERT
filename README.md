@@ -1,4 +1,4 @@
-# SBERT
+# Resume Shortlisting and Ranking with Transformers
 capstone 1
 ![image](https://user-images.githubusercontent.com/115694690/195538137-849139dc-83e0-4399-93ba-23f2045625e3.png)
 
